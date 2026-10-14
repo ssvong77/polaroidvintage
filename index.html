@@ -39,7 +39,7 @@
         }
         .polaroid-title {
             font-family: 'Pacifico', cursive;
-            font-size: 2.1rem; /* Ampliado desde 1.6rem */
+            font-size: 2.1rem; /* Ampliado */
             color: #1a1a1a;
             text-align: center;
             margin-top: 15px;
@@ -47,7 +47,7 @@
         }
         .polaroid-comment {
             font-family: 'Caveat', cursive;
-            font-size: 1.75rem; /* Ampliado desde 1.35rem */
+            font-size: 1.75rem; /* Ampliado */
             color: #333;
             text-align: center;
             min-height: 45px;
@@ -56,7 +56,7 @@
         }
         .polaroid-meta {
             font-family: 'Special Elite', monospace;
-            font-size: 0.95rem; /* Ampliado desde 0.75rem */
+            font-size: 0.95rem; /* Ampliado */
             color: #6c757d;
             letter-spacing: 0.5px;
         }
@@ -507,7 +507,7 @@
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, targetWidth, targetHeight);
 
-            // 2. Calcular y dibujar la imagen de la cámara dentro del visor superior
+            // 2. Calcular y dibujar la imagen de la cámara dentro del visor superior manteniendo proporciones originales (object-fit: cover real para canvas)
             const frameX = 45;
             const frameY = 45;
             const frameW = 710;
@@ -516,14 +516,30 @@
             const vW = video.videoWidth || 1280;
             const vH = video.videoHeight || 720;
             
+            // Cálculo para preservar el aspecto sin deformar (crop proporcional)
+            const videoRatio = vW / vH;
+            const frameRatio = frameW / frameH;
+            let sWidth = vW;
+            let sHeight = vH;
+            let sX = 0;
+            let sY = 0;
+
+            if (videoRatio > frameRatio) {
+                sWidth = vH * frameRatio;
+                sX = (vW - sWidth) / 2;
+            } else {
+                sHeight = vW / frameRatio;
+                sY = (vH - sHeight) / 2;
+            }
+
             ctx.save();
             if (useFrontCamera) {
                 ctx.translate(targetWidth, 0);
                 ctx.scale(-1, 1);
                 const invertedFrameX = targetWidth - (frameX + frameW);
-                ctx.drawImage(video, 0, 0, vW, vH, invertedFrameX, frameY, frameW, frameH);
+                ctx.drawImage(video, sX, sY, sWidth, sHeight, invertedFrameX, frameY, frameW, frameH);
             } else {
-                ctx.drawImage(video, 0, 0, vW, vH, frameX, frameY, frameW, frameH);
+                ctx.drawImage(video, sX, sY, sWidth, sHeight, frameX, frameY, frameW, frameH);
             }
             ctx.restore();
 
@@ -531,20 +547,20 @@
             ctx.lineWidth = 2;
             ctx.strokeRect(frameX, frameY, frameW, frameH);
 
-            // 3. Dibujar textos en la parte inferior blanca (Fuentes ampliadas proporcionalmente acorde al canvas)
-            // Título principal manuscrito (ampliado a 68px aprox)
+            // 3. Dibujar textos en la parte inferior blanca con fuentes ampliadas para compensar espacios
+            // Título principal manuscrito (ampliado a 68px)
             ctx.fillStyle = "#1a1a1a";
             ctx.font = "bold 68px 'Pacifico', cursive";
             ctx.textAlign = "center";
             ctx.fillText(titleSelect.value, targetWidth / 2, 630);
 
-            // Comentario multilínea ajustado (ampliado a 50px)
+            // Comentario multilínea ajustado y ampliado a 50px
             ctx.fillStyle = "#333333";
             ctx.font = "50px 'Caveat', cursive";
             const commentText = commentInput.value.trim() || "";
             wrapText(ctx, commentText, targetWidth / 2, 690, 700, 56);
 
-            // Metadatos (Fecha y GPS en la base, ampliados a 28px para aprovechar los espacios)
+            // Metadatos (Fecha y GPS ampliados a 28px para ocupar mejor el espacio inferior)
             ctx.fillStyle = "#6c757d";
             ctx.font = "bold 28px 'Special Elite', monospace";
             ctx.textAlign = "left";
@@ -563,7 +579,7 @@
                 previewBox.style.transform = "scale(0.98)";
                 setTimeout(() => previewBox.style.transform = "scale(1)", 150);
 
-                // Habilitar botón y disparar descarga automática
+                // Habilitar botón y disparar descarga automática inmediata
                 downloadLastBtn.disabled = false;
                 triggerDownload(lastCapturedBlobUrl);
             }, 'image/png');
