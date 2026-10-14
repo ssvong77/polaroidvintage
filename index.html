@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cámara Polaroid Vintage</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Google Fonts: Caveat & Pacifico for handwritten vintage styles -->
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Pacifico&family=Special+Elite&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body {
+            background-color: #f0f2f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
+        }
+        .polaroid-frame {
+            background: #ffffff;
+            padding: 16px 16px 70px 16px;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.18);
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .polaroid-screen {
+            background: #000;
+            width: 100%;
+            aspect-ratio: 4/3;
+            overflow: hidden;
+            position: relative;
+            border-radius: 2px;
+        }
+        .polaroid-screen video, .polaroid-screen canvas, .polaroid-screen img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .polaroid-title {
+            font-family: 'Pacifico', cursive;
+            font-size: 1.6rem;
+            color: #1a1a1a;
+            text-align: center;
+            margin-top: 15px;
+            word-break: break-word;
+        }
+        .polaroid-comment {
+            font-family: 'Caveat', cursive;
+            font-size: 1.35rem;
+            color: #333;
+            text-align: center;
+            min-height: 35px;
+            word-break: break-word;
+            line-height: 1.2;
+        }
+        .polaroid-meta {
+            font-family: 'Special Elite', monospace;
+            font-size: 0.75rem;
+            color: #6c757d;
+            letter-spacing: 0.5px;
+        }
+        .app-container {
+            max-width: 900px;
+            margin: auto;
+        }
+        .shutter-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            border: 4px solid #fff;
+            box-shadow: 0 6px 20px rgba(255, 65, 108, 0.4);
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+        .shutter-btn:active {
+            transform: scale(0.92);
+            box-shadow: 0 2px 10px rgba(255, 65, 108, 0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container py-4 app-container">
+        <header class="text-center mb-4">
+            <h1 class="fw-bold text-dark mb-1"><i class="fa-solid fa-camera-retro text-danger me-2"></i>Polaroid Vintage Studio</h1>
+            <p class="text-muted">Captura tus momentos con estilo clásico, geolocalización y textos personalizados.</p>
+        </header>
+
+        <div class="row g-4">
+            <!-- Columna Izquierda: Visor y Controles de Cámara -->
+            <div class="col-lg-6 d-flex flex-column align-items-center">
+                <div class="w-100 polaroid-frame mb-3" id="polaroidPreviewBox">
+                    <div class="polaroid-screen shadow-inner">
+                        <video id="webcam" autoplay playsinline muted></video>
+                        <canvas id="snapshotCanvas" class="d-none"></canvas>
+                    </div>
+                    <!-- Área inferior blanca de la Polaroid -->
+                    <div class="mt-2">
+                        <div id="displayTitle" class="polaroid-title">Recuerdo de...</div>
+                        <div id="displayComment" class="polaroid-comment text-muted fst-italic">Tus comentarios aquí...</div>
+                        <div class="d-flex justify-content-between align-items-end mt-2 pt-2 border-top border-light">
+                            <div id="displayDate" class="polaroid-meta">--/--/---- --:--</div>
+                            <div id="displayLocation" class="polaroid-meta text-end">Obteniendo GPS...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botones de Acción de Cámara -->
+                <div class="d-flex justify-content-center align-items-center gap-3 w-100 flex-wrap">
+                    <button id="flipBtn" class="btn btn-outline-secondary rounded-pill px-3 py-2 shadow-sm" title="Cambiar cámara">
+                        <i class="fa-solid fa-camera-rotate me-1"></i> Voltear
+                    </button>
+                    <button id="captureBtn" class="shutter-btn d-flex justify-content-center align-items-center text-white" title="Tomar Fotografía">
+                        <i class="fa-solid fa-circle fa-2x"></i>
+                    </button>
+                    <button id="resetSessionBtn" class="btn btn-outline-danger rounded-pill px-3 py-2 shadow-sm" title="Limpiar y Reiniciar Sesión">
+                        <i class="fa-solid fa-rotate-left me-1"></i> Limpiar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Columna Derecha: Configuración, Títulos y Comentarios -->
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 rounded-4 p-4 bg-white">
+                    <h4 class="fw-semibold mb-3 text-secondary"><i class="fa-solid fa-sliders me-2"></i>Configuración de Sesión</h4>
+                    <p class="small text-muted mb-3">Los datos se mantienen fijos para múltiples tomas en el mismo lugar u ocasión.</p>
+
+                    <!-- Selector de Título y Gestión CRUD -->
+                    <div class="mb-3">
+                        <label for="titleSelect" class="form-label fw-semibold">Título Polaroid</label>
+                        <div class="input-group">
+                            <select id="titleSelect" class="form-select">
+                                <!-- Se llena dinámicamente -->
+                            </select>
+                            <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#titleModal" title="Gestionar Títulos">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Comentario multilínea -->
+                    <div class="mb-3">
+                        <label for="commentInput" class="form-label fw-semibold">Comentario / Anécdota</label>
+                        <textarea id="commentInput" class="form-control" rows="3" placeholder="Escribe un recuerdo, anécdota o dedicatoria..."></textarea>
+                    </div>
+
+                    <!-- Fecha y Hora Automática -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Fecha y Hora</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="fa-regular fa-calendar-days"></i></span>
+                            <input type="text" id="dateTimeInput" class="form-control bg-light" readonly>
+                        </div>
+                    </div>
+
+                    <!-- Ubicación GPS -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Ubicación GPS</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="fa-solid fa-location-dot"></i></span>
+                            <input type="text" id="locationInput" class="form-control bg-light" value="Buscando señal GPS..." readonly>
+                            <button class="btn btn-outline-secondary" type="button" id="refreshGpsBtn" title="Actualizar ubicación">
+                                <i class="fa-solid fa-rotate"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Botón de Descarga Global -->
+                    <div class="d-grid mt-2">
+                        <button id="downloadLastBtn" class="btn btn-dark py-2 rounded-3 shadow-sm" disabled>
+                            <i class="fa-solid fa-download me-2"></i> Descargar Última Polaroid (PNG)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Gestionar Títulos (CRUD) -->
+    <div class="modal fade" id="titleModal" tabindex="-1" aria-labelledby="titleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title" id="titleModalLabel"><i class="fa-solid fa-list-check me-2"></i>Gestionar Títulos Polaroid</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Formulario para agregar / editar -->
+                    <div class="input-group mb-3">
+                        <input type="text" id="newTitleText" class="form-control" placeholder="Ej: ¡Momento inolvidable!">
+                        <button class="btn btn-success" type="button" id="saveTitleBtn">
+                            <i class="fa-solid fa-plus me-1"></i> Agregar
+                        </button>
+                    </div>
+                    <input type="hidden" id="editTitleIndex" value="-1">
+
+                    <hr class="my-3">
+                    <h6 class="text-muted fw-semibold mb-2">Títulos guardados:</h6>
+                    <div class="list-group" id="titlesListContainer" style="max-height: 220px; overflow-y: auto;">
+                        <!-- Lista dinámica -->
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Variables de estado global
+        let currentStream = null;
+        let useFrontCamera = false;
+        let currentCoords = "Ubicación no disponible";
+        let lastCapturedBlobUrl = null;
+        let lastCapturedImageObj = null;
+
+        // Títulos predeterminados iniciales y memoria de respaldo si localStorage está bloqueado
+        const defaultTitles = [
+            "Recuerdo de...",
+            "¿Te acordás de este lugar?",
+            "Y vos ¿Ya conocías?",
+            "Último momento",
+            "Urgente",
+            "Aventuras épicas",
+            "Noches inolvidables"
+        ];
+        let memoryTitlesFallback = [...defaultTitles];
+
+        // Elementos del DOM
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('snapshotCanvas');
+        const flipBtn = document.getElementById('flipBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const resetSessionBtn = document.getElementById('resetSessionBtn');
+        const refreshGpsBtn = document.getElementById('refreshGpsBtn');
+        
+        const titleSelect = document.getElementById('titleSelect');
+        const commentInput = document.getElementById('commentInput');
+        const dateTimeInput = document.getElementById('dateTimeInput');
+        const locationInput = document.getElementById('locationInput');
+        
+        const displayTitle = document.getElementById('displayTitle');
+        const displayComment = document.getElementById('displayComment');
+        const displayDate = document.getElementById('displayDate');
+        const displayLocation = document.getElementById('displayLocation');
+        
+        const downloadLastBtn = document.getElementById('downloadLastBtn');
+
+        // Modal elementos
+        const newTitleText = document.getElementById('newTitleText');
+        const saveTitleBtn = document.getElementById('saveTitleBtn');
+        const editTitleIndex = document.getElementById('editTitleIndex');
+        const titlesListContainer = document.getElementById('titlesListContainer');
+
+        // Inicialización al cargar la ventana
+        window.onload = function() {
+            initTitlesStorage();
+            loadTitlesToSelect();
+            renderTitlesManagementList();
+            startCamera(useFrontCamera);
+            updateDateTime();
+            setInterval(updateDateTime, 1000); // Actualizar reloj en vivo
+            initGeolocation();
+            setupEventListeners();
+        };
+
+        async function startCamera(front = false) {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+            const constraints = {
+                video: {
+                    facingMode: front ? "user" : "environment",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                },
+                audio: false
+            };
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoElement.srcObject = currentStream;
+            } catch (err) {
+                console.warn("Error accediendo a la cámara:", err);
+                // Fallback automático si falla la trasera
+                try {
+                    currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    videoElement.srcObject = currentStream;
+                } catch (e) {
+                    console.warn("No se pudo acceder a la cámara del dispositivo.");
+                }
+            }
+        }
+
+        function initTitlesStorage() {
+            try {
+                if (!localStorage.getItem('polaroid_titles')) {
+                    localStorage.setItem('polaroid_titles', JSON.stringify(defaultTitles));
+                }
+            } catch (e) {
+                console.warn("localStorage inaccesible, usando memoria volátil.", e);
+            }
+        }
+
+        function getStoredTitles() {
+            try {
+                const stored = localStorage.getItem('polaroid_titles');
+                if (stored) {
+                    return JSON.parse(stored);
+                }
+            } catch (e) {
+                console.warn("Error leyendo localStorage, usando respaldo en memoria.", e);
+            }
+            return memoryTitlesFallback;
+        }
+
+        function saveStoredTitles(titles) {
+            memoryTitlesFallback = [...titles];
+            try {
+                localStorage.setItem('polaroid_titles', JSON.stringify(titles));
+            } catch (e) {
+                console.warn("No se pudo escribir en localStorage, los cambios solo afectarán a esta sesión.", e);
+            }
+        }
+
+        function loadTitlesToSelect() {
+            const titles = getStoredTitles();
+            const currentVal = titleSelect.value;
+            titleSelect.innerHTML = '';
+            titles.forEach(title => {
+                const opt = document.createElement('option');
+                opt.value = title;
+                opt.textContent = title;
+                titleSelect.appendChild(opt);
+            });
+            if (titles.includes(currentVal)) {
+                titleSelect.value = currentVal;
+            }
+            displayTitle.textContent = titleSelect.value;
+        }
+
+        function renderTitlesManagementList() {
+            const titles = getStoredTitles();
+            titlesListContainer.innerHTML = '';
+            titles.forEach((title, index) => {
+                const item = document.createElement('div');
+                item.className = 'list-group-item d-flex justify-content-between align-items-center py-2';
+                item.innerHTML = `
+                    <span class="text-truncate me-2" style="max-width: 250px;">${title}</span>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="editTitlePrompt(${index})"><i class="fa-solid fa-pen"></i></button>
+                        <button class="btn btn-outline-danger" onclick="deleteTitleItem(${index})"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                `;
+                titlesListContainer.appendChild(item);
+            });
+        }
+
+        function updateDateTime() {
+            const now = new Date();
+            const formatted = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            dateTimeInput.value = formatted;
+            displayDate.textContent = formatted;
+        }
+
+        function initGeolocation() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude.toFixed(4);
+                        const lon = position.coords.longitude.toFixed(4);
+                        currentCoords = `${lat}, ${lon}`;
+                        locationInput.value = currentCoords;
+                        displayLocation.textContent = currentCoords;
+                    },
+                    (error) => {
+                        console.warn("GPS error o denegado:", error.message);
+                        currentCoords = "GPS no disponible";
+                        locationInput.value = currentCoords;
+                        displayLocation.textContent = currentCoords;
+                    },
+                    { timeout: 10000, maximumAge: 60000 }
+                );
+            } else {
+                currentCoords = "GPS no soportado";
+                locationInput.value = currentCoords;
+                displayLocation.textContent = currentCoords;
+            }
+        }
+
+        function setupEventListeners() {
+            // Cambio de título en vivo
+            titleSelect.addEventListener('change', () => {
+                displayTitle.textContent = titleSelect.value;
+            });
+
+            // Comentario en vivo
+            commentInput.addEventListener('input', () => {
+                displayComment.textContent = commentInput.value || "Tus comentarios aquí...";
+            });
+
+            // Voltear cámara
+            flipBtn.addEventListener('click', () => {
+                useFrontCamera = !useFrontCamera;
+                startCamera(useFrontCamera);
+            });
+
+            // Refrescar GPS
+            refreshGpsBtn.addEventListener('click', () => {
+                displayLocation.textContent = "Buscando GPS...";
+                locationInput.value = "Actualizando...";
+                initGeolocation();
+            });
+
+            // Limpiar / Reiniciar sesión
+            resetSessionBtn.addEventListener('click', () => {
+                commentInput.value = "";
+                displayComment.textContent = "Tus comentarios aquí...";
+                titleSelect.selectedIndex = 0;
+                displayTitle.textContent = titleSelect.value;
+                initGeolocation();
+                downloadLastBtn.disabled = true;
+                // Volver a mostrar video si estaba bloqueado por canvas estático
+                startCamera(useFrontCamera);
+            });
+
+            // Agregar / Guardar título desde el modal
+            saveTitleBtn.addEventListener('click', () => {
+                const val = newTitleText.value.trim();
+                if (!val) return;
+                let titles = getStoredTitles();
+                const editIdx = parseInt(editTitleIndex.value);
+
+                if (editIdx >= 0) {
+                    titles[editIdx] = val;
+                    editTitleIndex.value = -1;
+                    saveTitleBtn.innerHTML = '<i class="fa-solid fa-plus me-1"></i> Agregar';
+                    saveTitleBtn.className = 'btn btn-success';
+                } else {
+                    titles.push(val);
+                }
+
+                saveStoredTitles(titles);
+                newTitleText.value = '';
+                loadTitlesToSelect();
+                renderTitlesManagementList();
+            });
+
+            // Disparador de Captura y Renderizado Canvas Polaroid
+            captureBtn.addEventListener('click', () => {
+                capturePolaroidSnapshot();
+            });
+
+            // Descargar última foto generada
+            downloadLastBtn.addEventListener('click', () => {
+                if (!lastCapturedBlobUrl) return;
+                const a = document.createElement('a');
+                a.href = lastCapturedBlobUrl;
+                a.download = `Polaroid_${Date.now()}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            });
+        }
+
+        // Funciones auxiliares globales para CRUD de títulos desde onclick
+        window.editTitlePrompt = function(index) {
+            const titles = getStoredTitles();
+            newTitleText.value = titles[index];
+            editTitleIndex.value = index;
+            saveTitleBtn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Actualizar';
+            saveTitleBtn.className = 'btn btn-primary';
+        };
+
+        window.deleteTitleItem = function(index) {
+            let titles = getStoredTitles();
+            if (titles.length <= 1) {
+                console.warn("Debes mantener al menos un título en la lista.");
+                return;
+            }
+            titles.splice(index, 1);
+            saveStoredTitles(titles);
+            loadTitlesToSelect();
+            renderTitlesManagementList();
+        };
+
+        function capturePolaroidSnapshot() {
+            const video = videoElement;
+            const canvas = canvasElement;
+            const ctx = canvas.getContext('2d');
+
+            // Dimensiones estilo foto Polaroid física proporcional (ej: 800 x 960 px)
+            const targetWidth = 800;
+            const targetHeight = 980;
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+
+            // 1. Dibujar fondo marco blanco Polaroid
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+            // 2. Calcular y dibujar la imagen de la cámara dentro del visor superior
+            // Visor cuadrado/rectangular superior: x=40, y=40, w=720, h=540 (ratio 4:3)
+            const frameX = 45;
+            const frameY = 45;
+            const frameW = 710;
+            const frameH = 535;
+
+            // Asegurar aspecto de recorte correcto del video
+            const vW = video.videoWidth || 1280;
+            const vH = video.videoHeight || 720;
+            
+            // Si la cámara frontal está activa, podemos invertirla horizontalmente para efecto espejo natural
+            ctx.save();
+            if (useFrontCamera) {
+                // Para efecto espejo en canvas al descargar
+                ctx.translate(targetWidth, 0);
+                ctx.scale(-1, 1);
+                // Ajustar coordenadas X invertidas para el dibujo del video
+                const invertedFrameX = targetWidth - (frameX + frameW);
+                ctx.drawImage(video, 0, 0, vW, vH, invertedFrameX, frameY, frameW, frameH);
+            } else {
+                ctx.drawImage(video, 0, 0, vW, vH, frameX, frameY, frameW, frameH);
+            }
+            ctx.restore();
+
+            // Sutil borde interior oscuro en el visor fotográfico
+            ctx.strokeStyle = "#e0e0e0";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(frameX, frameY, frameW, frameH);
+
+            // 3. Dibujar textos en la parte inferior blanca
+            // Título principal manuscrito
+            ctx.fillStyle = "#1a1a1a";
+            ctx.font = "bold 52px 'Pacifico', cursive";
+            ctx.textAlign = "center";
+            ctx.fillText(titleSelect.value, targetWidth / 2, 630);
+
+            // Comentario multilínea ajustado
+            ctx.fillStyle = "#333333";
+            ctx.font = "38px 'Caveat', cursive";
+            const commentText = commentInput.value.trim() || "";
+            wrapText(ctx, commentText, targetWidth / 2, 690, 700, 44);
+
+            // Metadatos (Fecha y GPS en la base)
+            ctx.fillStyle = "#6c757d";
+            ctx.font = "bold 22px 'Special Elite', monospace";
+            ctx.textAlign = "left";
+            ctx.fillText(dateTimeInput.value, 50, 935);
+
+            ctx.textAlign = "right";
+            ctx.fillText(currentCoords, targetWidth - 50, 935);
+
+            // Generar URL de descarga y mostrar preview congelada temporal
+            canvas.toBlob((blob) => {
+                if (lastCapturedBlobUrl) URL.revokeObjectURL(lastCapturedBlobUrl);
+                lastCapturedBlobUrl = URL.createObjectURL(blob);
+                
+                // Efecto visual rápido de flash o notificación sutil
+                const previewBox = document.getElementById('polaroidPreviewBox');
+                previewBox.style.transform = "scale(0.98)";
+                setTimeout(() => previewBox.style.transform = "scale(1)", 150);
+
+                // Habilitar botón de descarga
+                downloadLastBtn.disabled = false;
+            }, 'image/png');
+        }
+
+        // Helper para envolver texto multilínea en el canvas
+        function wrapText(context, text, x, y, maxWidth, lineHeight) {
+            if (!text) return;
+            const words = text.split(' ');
+            let line = '';
+            let currentY = y;
+
+            for (let n = 0; n < words.length; n++) {
+                let testLine = line + words[n] + ' ';
+                let metrics = context.measureText(testLine);
+                let testWidth = metrics.width;
+                if (testWidth > maxWidth && n > 0) {
+                    context.fillText(line, x, currentY);
+                    line = words[n] + ' ';
+                    currentY += lineHeight;
+                } else {
+                    line = testLine;
+                }
+            }
+            context.fillText(line, x, currentY);
+        }
+    </script>
+</body>
+</html>
