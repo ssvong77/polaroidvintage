@@ -80,6 +80,28 @@
             transform: scale(0.92);
             box-shadow: 0 2px 10px rgba(255, 65, 108, 0.4);
         }
+        #flashOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s ease-out;
+            z-index: 20;
+        }
+        #flashOverlay.flash-active {
+            opacity: 0.95;
+            transition: opacity 0.05s ease-in;
+        }
+        /* Visual Canvas Filters applied live in screen */
+        .filter-normal { filter: none; }
+        .filter-sepia { filter: sepia(0.65) contrast(1.1) brightness(0.95); }
+        .filter-bw { filter: grayscale(1) contrast(1.2); }
+        .filter-vintage { filter: sepia(0.35) hue-rotate(-10deg) saturate(1.3) contrast(1.1); }
+        .filter-contrast { filter: contrast(1.4) saturate(1.2); }
     </style>
 </head>
 <body>
@@ -94,8 +116,9 @@
             <!-- Columna Izquierda: Visor y Controles de Cámara -->
             <div class="col-lg-6 d-flex flex-column align-items-center">
                 <div class="w-100 polaroid-frame mb-3" id="polaroidPreviewBox">
-                    <div class="polaroid-screen shadow-inner">
-                        <video id="webcam" autoplay playsinline muted></video>
+                    <div class="polaroid-screen shadow-inner" id="cameraScreenContainer">
+                        <div id="flashOverlay"></div>
+                        <video id="webcam" class="filter-normal" autoplay playsinline muted></video>
                         <canvas id="snapshotCanvas" class="d-none"></canvas>
                     </div>
                     <!-- Área inferior blanca de la Polaroid -->
@@ -114,6 +137,9 @@
                     <button id="flipBtn" class="btn btn-outline-secondary rounded-pill px-3 py-2 shadow-sm" title="Cambiar cámara">
                         <i class="fa-solid fa-camera-rotate me-1"></i> Voltear
                     </button>
+                    <button id="flashToggleBtn" class="btn btn-outline-warning rounded-pill px-3 py-2 shadow-sm" title="Modo Flash">
+                        <i class="fa-solid fa-bolt me-1"></i> Flash: OFF
+                    </button>
                     <button id="captureBtn" class="shutter-btn d-flex justify-content-center align-items-center text-white" title="Tomar Fotografía">
                         <i class="fa-solid fa-circle fa-2x"></i>
                     </button>
@@ -128,6 +154,18 @@
                 <div class="card shadow-sm border-0 rounded-4 p-4 bg-white">
                     <h4 class="fw-semibold mb-3 text-secondary"><i class="fa-solid fa-sliders me-2"></i>Configuración de Sesión</h4>
                     <p class="small text-muted mb-3">Los datos se mantienen fijos para múltiples tomas en el mismo lugar u ocasión.</p>
+
+                    <!-- Filtro de Corrección de Imagen -->
+                    <div class="mb-3">
+                        <label for="filterSelect" class="form-label fw-semibold"><i class="fa-solid fa-wand-magic-sparkles me-2 text-warning"></i>Filtro / Tono Vintage</label>
+                        <select id="filterSelect" class="form-select">
+                            <option value="normal">Normal (Natural)</option>
+                            <option value="sepia">Sepia Cálido (Clásico '70s)</option>
+                            <option value="vintage">Vivid Retro (Película 35mm)</option>
+                            <option value="bw">Blanco & Negro Analógico</option>
+                            <option value="contrast">Alto Contraste / Pop</option>
+                        </select>
+                    </div>
 
                     <!-- Selector de Título y Gestión CRUD -->
                     <div class="mb-3">
@@ -213,9 +251,9 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // Variables de estado global
         let currentStream = null;
         let useFrontCamera = false;
+        let flashMode = false; // false = Off, true = On
         let currentCoords = "Ubicación no disponible";
         let lastCapturedBlobUrl = null;
 
@@ -235,10 +273,12 @@
         const videoElement = document.getElementById('webcam');
         const canvasElement = document.getElementById('snapshotCanvas');
         const flipBtn = document.getElementById('flipBtn');
+        const flashToggleBtn = document.getElementById('flashToggleBtn');
         const captureBtn = document.getElementById('captureBtn');
         const resetSessionBtn = document.getElementById('resetSessionBtn');
         const refreshGpsBtn = document.getElementById('refreshGpsBtn');
         
+        const filterSelect = document.getElementById('filterSelect');
         const titleSelect = document.getElementById('titleSelect');
         const commentInput = document.getElementById('commentInput');
         const dateTimeInput = document.getElementById('dateTimeInput');
@@ -250,6 +290,7 @@
         const displayLocation = document.getElementById('displayLocation');
         
         const downloadLastBtn = document.getElementById('downloadLastBtn');
+        const flashOverlay = document.getElementById('flashOverlay');
 
         // Modal elementos
         const newTitleText = document.getElementById('newTitleText');
@@ -284,6 +325,7 @@
             try {
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
                 videoElement.srcObject = currentStream;
+                applyTorchHardware(flashMode);
             } catch (err) {
                 console.warn("Error accediendo a la cámara:", err);
                 try {
@@ -292,6 +334,23 @@
                 } catch (e) {
                     console.warn("No se pudo acceder a la cámara del dispositivo.");
                 }
+            }
+        }
+
+        async function applyTorchHardware(enable) {
+            if (!currentStream) return;
+            const track = currentStream.getVideoTracks()[0];
+            if (!track) return;
+
+            try {
+                const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+                if (capabilities.torch) {
+                    await track.applyConstraints({
+                        advanced: [{ torch: enable }]
+                    });
+                }
+            } catch (err) {
+                console.warn("Hardware Flash/Torch no soportado en esta cámara/dispositivo:", err);
             }
         }
 
@@ -396,6 +455,11 @@
                 displayTitle.textContent = titleSelect.value;
             });
 
+            filterSelect.addEventListener('change', () => {
+                const filterVal = filterSelect.value;
+                videoElement.className = `filter-${filterVal}`;
+            });
+
             commentInput.addEventListener('input', () => {
                 displayComment.textContent = commentInput.value || "Tus comentarios aquí...";
             });
@@ -403,6 +467,18 @@
             flipBtn.addEventListener('click', () => {
                 useFrontCamera = !useFrontCamera;
                 startCamera(useFrontCamera);
+            });
+
+            flashToggleBtn.addEventListener('click', () => {
+                flashMode = !flashMode;
+                if (flashMode) {
+                    flashToggleBtn.className = "btn btn-warning rounded-pill px-3 py-2 shadow-sm text-dark fw-semibold";
+                    flashToggleBtn.innerHTML = '<i class="fa-solid fa-bolt me-1"></i> Flash: ON';
+                } else {
+                    flashToggleBtn.className = "btn btn-outline-warning rounded-pill px-3 py-2 shadow-sm";
+                    flashToggleBtn.innerHTML = '<i class="fa-solid fa-bolt me-1"></i> Flash: OFF';
+                }
+                applyTorchHardware(flashMode);
             });
 
             refreshGpsBtn.addEventListener('click', () => {
@@ -416,6 +492,8 @@
                 displayComment.textContent = "Tus comentarios aquí...";
                 titleSelect.selectedIndex = 0;
                 displayTitle.textContent = titleSelect.value;
+                filterSelect.selectedIndex = 0;
+                videoElement.className = 'filter-normal';
                 initGeolocation();
                 downloadLastBtn.disabled = true;
                 startCamera(useFrontCamera);
@@ -482,6 +560,16 @@
         }
 
         function capturePolaroidSnapshotAndDownload() {
+            // Trigger Visual Flash Overlay
+            if (flashMode) {
+                flashOverlay.classList.add('flash-active');
+                setTimeout(() => flashOverlay.classList.remove('flash-active'), 180);
+            } else {
+                // Subtle pulse flash on camera shutter press anyway for physical feel
+                flashOverlay.style.opacity = '0.3';
+                setTimeout(() => flashOverlay.style.opacity = '0', 100);
+            }
+
             const video = videoElement;
             const canvas = canvasElement;
             const ctx = canvas.getContext('2d');
@@ -529,6 +617,20 @@
             ctx.rect(frameX, frameY, frameW, frameH);
             ctx.clip();
 
+            // Aplicar Filtro de Corrección seleccionado directamente al Canvas de descarga
+            const currentFilter = filterSelect.value;
+            if (currentFilter === 'sepia') {
+                ctx.filter = 'sepia(0.65) contrast(1.1) brightness(0.95)';
+            } else if (currentFilter === 'bw') {
+                ctx.filter = 'grayscale(1) contrast(1.2)';
+            } else if (currentFilter === 'vintage') {
+                ctx.filter = 'sepia(0.35) hue-rotate(-10deg) saturate(1.3) contrast(1.1)';
+            } else if (currentFilter === 'contrast') {
+                ctx.filter = 'contrast(1.4) saturate(1.2)';
+            } else {
+                ctx.filter = 'none';
+            }
+
             if (useFrontCamera) {
                 ctx.translate(targetWidth, 0);
                 ctx.scale(-1, 1);
@@ -543,6 +645,9 @@
             ctx.strokeStyle = "#e0e0e0";
             ctx.lineWidth = 2;
             ctx.strokeRect(frameX, frameY, frameW, frameH);
+
+            // Reset filter for texts
+            ctx.filter = 'none';
 
             // 3. Renderizado de Textos con separación corregida respecto al marco de la foto
             // Título manuscrito descendido a Y=655 para no tocar la foto superior
@@ -571,7 +676,7 @@
                 if (lastCapturedBlobUrl) URL.revokeObjectURL(lastCapturedBlobUrl);
                 lastCapturedBlobUrl = URL.createObjectURL(blob);
                 
-                // Efecto de destello visual
+                // Efecto de movimiento al disparar
                 const previewBox = document.getElementById('polaroidPreviewBox');
                 previewBox.style.transform = "scale(0.98)";
                 setTimeout(() => previewBox.style.transform = "scale(1)", 150);
