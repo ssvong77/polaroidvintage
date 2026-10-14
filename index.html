@@ -39,7 +39,7 @@
         }
         .polaroid-title {
             font-family: 'Pacifico', cursive;
-            font-size: 1.6rem;
+            font-size: 2.1rem; /* Ampliado desde 1.6rem */
             color: #1a1a1a;
             text-align: center;
             margin-top: 15px;
@@ -47,16 +47,16 @@
         }
         .polaroid-comment {
             font-family: 'Caveat', cursive;
-            font-size: 1.35rem;
+            font-size: 1.75rem; /* Ampliado desde 1.35rem */
             color: #333;
             text-align: center;
-            min-height: 35px;
+            min-height: 45px;
             word-break: break-word;
-            line-height: 1.2;
+            line-height: 1.25;
         }
         .polaroid-meta {
             font-family: 'Special Elite', monospace;
-            font-size: 0.75rem;
+            font-size: 0.95rem; /* Ampliado desde 0.75rem */
             color: #6c757d;
             letter-spacing: 0.5px;
         }
@@ -452,18 +452,13 @@
 
             // Disparador de Captura y Renderizado Canvas Polaroid
             captureBtn.addEventListener('click', () => {
-                capturePolaroidSnapshot();
+                capturePolaroidSnapshotAndDownload();
             });
 
             // Descargar última foto generada
             downloadLastBtn.addEventListener('click', () => {
                 if (!lastCapturedBlobUrl) return;
-                const a = document.createElement('a');
-                a.href = lastCapturedBlobUrl;
-                a.download = `Polaroid_${Date.now()}.png`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+                triggerDownload(lastCapturedBlobUrl);
             });
         }
 
@@ -488,12 +483,21 @@
             renderTitlesManagementList();
         };
 
-        function capturePolaroidSnapshot() {
+        function triggerDownload(blobUrl) {
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `Polaroid_${Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function capturePolaroidSnapshotAndDownload() {
             const video = videoElement;
             const canvas = canvasElement;
             const ctx = canvas.getContext('2d');
 
-            // Dimensiones estilo foto Polaroid física proporcional (ej: 800 x 960 px)
+            // Dimensiones estilo foto Polaroid física proporcional (ej: 800 x 980 px)
             const targetWidth = 800;
             const targetHeight = 980;
             canvas.width = targetWidth;
@@ -504,23 +508,18 @@
             ctx.fillRect(0, 0, targetWidth, targetHeight);
 
             // 2. Calcular y dibujar la imagen de la cámara dentro del visor superior
-            // Visor cuadrado/rectangular superior: x=40, y=40, w=720, h=540 (ratio 4:3)
             const frameX = 45;
             const frameY = 45;
             const frameW = 710;
             const frameH = 535;
 
-            // Asegurar aspecto de recorte correcto del video
             const vW = video.videoWidth || 1280;
             const vH = video.videoHeight || 720;
             
-            // Si la cámara frontal está activa, podemos invertirla horizontalmente para efecto espejo natural
             ctx.save();
             if (useFrontCamera) {
-                // Para efecto espejo en canvas al descargar
                 ctx.translate(targetWidth, 0);
                 ctx.scale(-1, 1);
-                // Ajustar coordenadas X invertidas para el dibujo del video
                 const invertedFrameX = targetWidth - (frameX + frameW);
                 ctx.drawImage(video, 0, 0, vW, vH, invertedFrameX, frameY, frameW, frameH);
             } else {
@@ -528,45 +527,45 @@
             }
             ctx.restore();
 
-            // Sutil borde interior oscuro en el visor fotográfico
             ctx.strokeStyle = "#e0e0e0";
             ctx.lineWidth = 2;
             ctx.strokeRect(frameX, frameY, frameW, frameH);
 
-            // 3. Dibujar textos en la parte inferior blanca
-            // Título principal manuscrito
+            // 3. Dibujar textos en la parte inferior blanca (Fuentes ampliadas proporcionalmente acorde al canvas)
+            // Título principal manuscrito (ampliado a 68px aprox)
             ctx.fillStyle = "#1a1a1a";
-            ctx.font = "bold 52px 'Pacifico', cursive";
+            ctx.font = "bold 68px 'Pacifico', cursive";
             ctx.textAlign = "center";
             ctx.fillText(titleSelect.value, targetWidth / 2, 630);
 
-            // Comentario multilínea ajustado
+            // Comentario multilínea ajustado (ampliado a 50px)
             ctx.fillStyle = "#333333";
-            ctx.font = "38px 'Caveat', cursive";
+            ctx.font = "50px 'Caveat', cursive";
             const commentText = commentInput.value.trim() || "";
-            wrapText(ctx, commentText, targetWidth / 2, 690, 700, 44);
+            wrapText(ctx, commentText, targetWidth / 2, 690, 700, 56);
 
-            // Metadatos (Fecha y GPS en la base)
+            // Metadatos (Fecha y GPS en la base, ampliados a 28px para aprovechar los espacios)
             ctx.fillStyle = "#6c757d";
-            ctx.font = "bold 22px 'Special Elite', monospace";
+            ctx.font = "bold 28px 'Special Elite', monospace";
             ctx.textAlign = "left";
             ctx.fillText(dateTimeInput.value, 50, 935);
 
             ctx.textAlign = "right";
             ctx.fillText(currentCoords, targetWidth - 50, 935);
 
-            // Generar URL de descarga y mostrar preview congelada temporal
+            // Generar URL de descarga y disparar la descarga de inmediato automáticamente
             canvas.toBlob((blob) => {
                 if (lastCapturedBlobUrl) URL.revokeObjectURL(lastCapturedBlobUrl);
                 lastCapturedBlobUrl = URL.createObjectURL(blob);
                 
-                // Efecto visual rápido de flash o notificación sutil
+                // Efecto visual de destello en el contenedor
                 const previewBox = document.getElementById('polaroidPreviewBox');
                 previewBox.style.transform = "scale(0.98)";
                 setTimeout(() => previewBox.style.transform = "scale(1)", 150);
 
-                // Habilitar botón de descarga
+                // Habilitar botón y disparar descarga automática
                 downloadLastBtn.disabled = false;
+                triggerDownload(lastCapturedBlobUrl);
             }, 'image/png');
         }
 
